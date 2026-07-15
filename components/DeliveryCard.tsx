@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { MapPin, Phone, CheckCircle, Navigation, Package, DollarSign } from "lucide-react";
+import {
+  MapPin,
+  Phone,
+  CheckCircle,
+  Navigation,
+  Package,
+  DollarSign,
+} from "lucide-react";
 
 interface OrderItem {
   name: string;
@@ -32,7 +39,11 @@ interface DeliveryCardProps {
   onReachedRestaurant?: () => Promise<void>;
 }
 
-export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRestaurant }: DeliveryCardProps) {
+export default function DeliveryCard({
+  assignment,
+  onMarkDelivered,
+  onReachedRestaurant,
+}: DeliveryCardProps) {
   const [loading, setLoading] = useState(false);
   const { order, status } = assignment;
 
@@ -52,9 +63,9 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
   const handleNavigate = () => {
     // Standard coordinates or lookup ( Medicine Hat coordinates for mock orders or fallback )
     // In production, assignment.customerLocation will contain the exact coordinates
-    const lat = assignment.customerLocation?.lat || 50.0370;
-    const lng = assignment.customerLocation?.lng || -110.6600;
-    
+    const lat = assignment.customerLocation?.lat || 50.037;
+    const lng = assignment.customerLocation?.lng || -110.66;
+
     // Open Google Maps URL
     const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
     window.open(url, "_blank");
@@ -90,9 +101,13 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
       <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-          <span className="text-sm font-bold text-neutral-400">Order #{order.orderNumber}</span>
+          <span className="text-sm font-bold text-neutral-400">
+            Order #{order.orderNumber}
+          </span>
         </div>
-        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusColor()}`}>
+        <span
+          className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusColor()}`}
+        >
           {getStatusText()}
         </span>
       </div>
@@ -102,8 +117,12 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
         <div className="flex items-start gap-3">
           <MapPin className="text-neutral-500 shrink-0 mt-0.5" size={16} />
           <div>
-            <p className="text-xs font-semibold text-neutral-400">Delivery Address</p>
-            <p className="text-sm text-neutral-200 mt-0.5 leading-snug">{order.deliveryAddress}</p>
+            <p className="text-xs font-semibold text-neutral-400">
+              Delivery Address
+            </p>
+            <p className="text-sm text-neutral-200 mt-0.5 leading-snug">
+              {order.deliveryAddress}
+            </p>
           </div>
         </div>
 
@@ -113,7 +132,9 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
               {order.customerName.charAt(0)}
             </div>
             <div>
-              <p className="text-xs font-bold text-neutral-200">{order.customerName}</p>
+              <p className="text-xs font-bold text-neutral-200">
+                {order.customerName}
+              </p>
               <p className="text-xs text-neutral-500">{order.customerPhone}</p>
             </div>
           </div>

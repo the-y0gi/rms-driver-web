@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "../lib/api";
-import { User, Lock, AlertCircle, Key, Truck } from "lucide-react";
+import { User, Lock, AlertCircle, Key, Truck, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [geoPermission, setGeoPermission] = useState<"granted" | "denied" | "prompt">("prompt");
 
   // Check if already logged in
@@ -141,12 +142,20 @@ export default function LoginPage() {
                 <Lock size={16} />
               </span>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-neutral-900/60 border border-neutral-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder-neutral-600 outline-none transition-all"
+                className="w-full bg-neutral-900/60 border border-neutral-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-xl py-3.5 pl-11 pr-11 text-sm text-white placeholder-neutral-600 outline-none transition-all"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
           </div>
 
