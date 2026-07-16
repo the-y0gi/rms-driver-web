@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import api from "../../lib/api";
 import { getPusherClient } from "../../lib/pusher";
 import DeliveryCard from "../../components/DeliveryCard";
-import LocationTracker, { RESTAURANT_COORDS } from "../../components/LocationTracker";
+import LocationTracker from "../../components/LocationTracker";
 import { LogOut, Power, Truck, User, RefreshCw, Compass, CheckCircle } from "lucide-react";
 
 interface Vehicle {
