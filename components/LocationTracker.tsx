@@ -4,8 +4,7 @@ import { useEffect, useRef } from "react";
 import { getPusherClient } from "../lib/pusher";
 import { getDistanceMeters, getBearing, Coordinates } from "../lib/geo";
 
-// Medicine Hat Branch Location (matches restaurantLocation in branch frontend)
-export const RESTAURANT_COORDS: Coordinates = { lat: 50.0280, lng: -110.6770 };
+// We will dynamically capture the first location as the restaurant location for local testing
 
 interface LocationTrackerProps {
   driverId: string;
@@ -26,6 +25,9 @@ export default function LocationTracker({
   const lastSentPosRef = useRef<Coordinates | null>(null);
   const lastSentTimeRef = useRef<number>(0);
   const isCompletedRef = useRef<boolean>(false);
+  const restaurantCoordsRef = useRef<Coordinates | null>(null);
+  const latestPosRef = useRef<Coordinates | null>(null);
+  const isRestaurantSubscribed = useRef<boolean>(false);
 
   // Dynamic thresholds based on phase
   const distanceThreshold = phase === "en-route" ? 50 : 200; // 50m en-route, 200m returning
@@ -42,11 +44,56 @@ export default function LocationTracker({
     // Subscribe to private-restaurant-{restaurantId}
     const restaurantChannel = pusher.subscribe(`private-restaurant-${restaurantId}`);
     
+    // Track channel subscription status to avoid "triggered before channel subscription succeeded" console errors
+    const subscribedOrderChannels = new Set<string>();
+
     // Subscribe to each active order's private-order-{orderId} channel (en-route only)
     const orderChannels =
       phase === "en-route"
-        ? activeOrderIds.map((oid) => pusher.subscribe(`private-order-${oid}`))
+        ? activeOrderIds.map((oid) => {
+            const ch = pusher.subscribe(`private-order-${oid}`);
+            ch.bind("pusher:subscription_succeeded", () => {
+              subscribedOrderChannels.add(oid);
+              console.log(`[LocationTracker] Subscribed to order channel: ${oid}`);
+              // Trigger an initial ping immediately on this order channel now that it's subscribed
+              if (latestPosRef.current) {
+                const currentCoords = latestPosRef.current;
+                const bearing = lastSentPosRef.current ? getBearing(lastSentPosRef.current, currentCoords) : 0;
+                ch.trigger("client-driver-location", {
+                  driverId,
+                  lat: currentCoords.lat,
+                  lng: currentCoords.lng,
+                  bearing,
+                  timestamp: Date.now(),
+                  phase,
+                });
+              }
+            });
+            return ch;
+          })
         : [];
+
+    // Fetch initial location immediately on mount so we don't have to wait for watchPosition (crucial for desktop/wifi testing)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const currentCoords: Coordinates = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        latestPosRef.current = currentCoords;
+        if (!restaurantCoordsRef.current) {
+          restaurantCoordsRef.current = currentCoords;
+        }
+        console.log("[LocationTracker] Initial position populated:", currentCoords);
+        
+        // If restaurant channel is already subscribed, trigger initial broadcast
+        if (isRestaurantSubscribed.current) {
+          requestLocationHandler();
+        }
+      },
+      (err) => console.warn("[LocationTracker] Initial getCurrentPosition failed:", err),
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 30000 }
+    );
 
     const handleNewLocation = (position: GeolocationPosition) => {
       const currentCoords: Coordinates = {
@@ -54,17 +101,22 @@ export default function LocationTracker({
         lng: position.coords.longitude,
       };
 
+      if (!restaurantCoordsRef.current) {
+        // Assume the first location the driver broadcasts is the restaurant base (for local testing)
+        restaurantCoordsRef.current = currentCoords;
+      }
+
+      latestPosRef.current = currentCoords;
+
       const now = Date.now();
       
       // Calculate distance from last sent position
       const distance = lastSentPosRef.current
         ? getDistanceMeters(lastSentPosRef.current, currentCoords)
         : Infinity;
-        
-      const timeSinceLastSend = now - lastSentTimeRef.current;
 
-      // Smart filter: Send only if moved > distanceThreshold OR heartbeat elapsed
-      if (distance >= distanceThreshold || timeSinceLastSend >= heartbeatInterval) {
+      // Real-time movement trigger: If they moved more than the threshold, send immediately
+      if (distance >= distanceThreshold) {
         const bearing = lastSentPosRef.current
           ? getBearing(lastSentPosRef.current, currentCoords)
           : 0;
@@ -79,16 +131,14 @@ export default function LocationTracker({
         };
 
         // Broadcast P2P client-driver-location event
-        // 1. Send to restaurant channel (branch dashboard)
-        if (restaurantChannel.subscribed) {
+        if (isRestaurantSubscribed.current) {
           restaurantChannel.trigger("client-driver-location", payload);
         }
 
-        // 2. Send to all active order channels (user tracking frontends)
         if (phase === "en-route") {
-          orderChannels.forEach((ch) => {
-            if (ch.subscribed) {
-              ch.trigger("client-driver-location", payload);
+          activeOrderIds.forEach((oid, idx) => {
+            if (subscribedOrderChannels.has(oid) && orderChannels[idx]) {
+              orderChannels[idx].trigger("client-driver-location", payload);
             }
           });
         }
@@ -96,12 +146,12 @@ export default function LocationTracker({
         // Update refs
         lastSentPosRef.current = currentCoords;
         lastSentTimeRef.current = now;
-        console.log(`[LocationTracker] Sent location: ${JSON.stringify(payload)}`);
+        console.log(`[LocationTracker] Moved. Sent location: ${JSON.stringify(payload)}`);
       }
 
       // Return trip check: auto-stop when within 200m of restaurant
-      if (phase === "returning" && !isCompletedRef.current) {
-        const distanceToRestaurant = getDistanceMeters(currentCoords, RESTAURANT_COORDS);
+      if (phase === "returning" && !isCompletedRef.current && restaurantCoordsRef.current) {
+        const distanceToRestaurant = getDistanceMeters(currentCoords, restaurantCoordsRef.current);
         if (distanceToRestaurant < 200) {
           isCompletedRef.current = true;
           console.log("[LocationTracker] Reached restaurant! Triggering onReachedRestaurant.");
@@ -115,46 +165,39 @@ export default function LocationTracker({
     // Watch position
     watchIdRef.current = navigator.geolocation.watchPosition(
       handleNewLocation,
-      (err) => console.error("Geolocation error:", err),
+      (err) => console.warn("[LocationTracker] watchPosition error:", err),
       {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
+        enableHighAccuracy: false, // Low accuracy is much faster/stable on desktop browsers and non-GPS testing
+        timeout: 15000,
+        maximumAge: 10000,
       }
     );
 
-    // Listen for client requests to force-send location (e.g. user page opened)
     const requestLocationHandler = () => {
-      // Force send immediately
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const currentCoords = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          };
-          const bearing = lastSentPosRef.current ? getBearing(lastSentPosRef.current, currentCoords) : 0;
-          const payload = {
-            driverId,
-            lat: currentCoords.lat,
-            lng: currentCoords.lng,
-            bearing,
-            timestamp: Date.now(),
-            phase,
-          };
-          if (restaurantChannel.subscribed) {
-            restaurantChannel.trigger("client-driver-location", payload);
+      // Use the latest known position for instant reply instead of waiting for a new GPS fix
+      if (!latestPosRef.current) return;
+      
+      const currentCoords = latestPosRef.current;
+      const bearing = lastSentPosRef.current ? getBearing(lastSentPosRef.current, currentCoords) : 0;
+      const payload = {
+        driverId,
+        lat: currentCoords.lat,
+        lng: currentCoords.lng,
+        bearing,
+        timestamp: Date.now(),
+        phase,
+      };
+      
+      if (isRestaurantSubscribed.current) {
+        restaurantChannel.trigger("client-driver-location", payload);
+      }
+      if (phase === "en-route") {
+        activeOrderIds.forEach((oid, idx) => {
+          if (subscribedOrderChannels.has(oid) && orderChannels[idx]) {
+            orderChannels[idx].trigger("client-driver-location", payload);
           }
-          if (phase === "en-route") {
-            orderChannels.forEach((ch) => {
-              if (ch.subscribed) {
-                ch.trigger("client-driver-location", payload);
-              }
-            });
-          }
-        },
-        (err) => console.error("Immediate geo request failed", err),
-        { enableHighAccuracy: true }
-      );
+        });
+      }
     };
 
     // Listen on order channels for request location triggers
@@ -164,8 +207,24 @@ export default function LocationTracker({
       });
     }
 
+    // Trigger initial location ping once the restaurant channel successfully subscribes
+    restaurantChannel.bind("pusher:subscription_succeeded", () => {
+      isRestaurantSubscribed.current = true;
+      if (latestPosRef.current) {
+        requestLocationHandler();
+      }
+    });
+
+    // Heartbeat timer to periodically send location updates, critical for stationary drivers (laptops/simulators)
+    const heartbeatTimer = setInterval(() => {
+      if (latestPosRef.current) {
+        requestLocationHandler();
+      }
+    }, heartbeatInterval);
+
     // Cleanup
     return () => {
+      clearInterval(heartbeatTimer);
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }

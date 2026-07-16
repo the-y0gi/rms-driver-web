@@ -31,15 +31,60 @@ export default function DashboardPage() {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [hasLocationPermission, setHasLocationPermission] = useState<boolean | null>(null);
 
-  // Load driver session
+  // Check compulsory GPS
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setHasLocationPermission(false);
+      return;
+    }
+
+    const checkLocation = () => {
+      navigator.geolocation.getCurrentPosition(
+        () => setHasLocationPermission(true),
+        (err) => {
+          console.error("Compulsory Location error:", err);
+          setHasLocationPermission(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    };
+
+    checkLocation();
+
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'geolocation' as any }).then((result) => {
+        result.onchange = () => {
+          if (result.state === 'granted') {
+            setHasLocationPermission(true);
+          } else {
+            setHasLocationPermission(false);
+          }
+        };
+      });
+    }
+  }, []);
+
+  // Load driver session and sync with backend
   useEffect(() => {
     const saved = localStorage.getItem("driver_session");
     if (!saved) {
       router.push("/");
       return;
     }
-    setDriver(JSON.parse(saved));
+    const session = JSON.parse(saved);
+    setDriver(session);
+
+    // Sync status with database to prevent reset on reload
+    api.get(`/delivery/driver/${session._id}`)
+      .then((res) => {
+        if (res.data.success && res.data.data) {
+          setDriver(res.data.data);
+          localStorage.setItem("driver_session", JSON.stringify(res.data.data));
+        }
+      })
+      .catch((err) => console.error("Sync error:", err));
   }, [router]);
 
   // Fetch active assignments for driver
@@ -69,8 +114,13 @@ export default function DashboardPage() {
       // If assigned to this driver, fetch updated assignments
       if (data.driverId === driver._id) {
         fetchAssignments(driver._id);
-        // Automatically switch driver status to on-delivery
-        setDriver((prev) => (prev ? { ...prev, status: "on-delivery" } : null));
+        // Automatically switch driver status to on-delivery and save to localStorage
+        setDriver((prev) => {
+          if (!prev) return null;
+          const updated = { ...prev, status: "on-delivery" as const };
+          localStorage.setItem("driver_session", JSON.stringify(updated));
+          return updated;
+        });
       }
     });
 
@@ -151,7 +201,34 @@ export default function DashboardPage() {
     router.push("/");
   };
 
-  if (!driver) return null;
+  if (hasLocationPermission === false) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 bg-red-900/30 border border-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-4">
+          <Compass size={32} />
+        </div>
+        <h2 className="text-xl font-black mb-2">GPS Location Required</h2>
+        <p className="text-neutral-400 text-sm mb-6 max-w-sm leading-relaxed">
+          The driver app strictly requires live GPS tracking to function properly. Please enable location access in your browser or device settings to continue.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold active:scale-95 transition-all shadow-lg flex items-center gap-2"
+        >
+          <RefreshCw size={16} />
+          <span>I've enabled it, Check Again</span>
+        </button>
+      </div>
+    );
+  }
+
+  if (!driver || hasLocationPermission === null) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-neutral-800 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   // Derived state
   const activeAssignments = assignments.filter((a) => a.status === "assigned" || a.status === "en-route");

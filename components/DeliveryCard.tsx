@@ -61,14 +61,31 @@ export default function DeliveryCard({
   };
 
   const handleNavigate = () => {
-    // Standard coordinates or lookup ( Medicine Hat coordinates for mock orders or fallback )
-    // In production, assignment.customerLocation will contain the exact coordinates
+    // Exact destination coordinates
     const lat = assignment.customerLocation?.lat || 50.037;
     const lng = assignment.customerLocation?.lng || -110.66;
 
-    // Open Google Maps URL
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-    window.open(url, "_blank");
+    // Fetch the driver's current exact location for the origin
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const originLat = pos.coords.latitude;
+          const originLng = pos.coords.longitude;
+          const url = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${lat},${lng}`;
+          window.open(url, "_blank");
+        },
+        (err) => {
+          console.error("Failed to get origin location for maps", err);
+          // Fallback to letting Google Maps determine location
+          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+          window.open(url, "_blank");
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+      window.open(url, "_blank");
+    }
   };
 
   const getStatusColor = () => {
