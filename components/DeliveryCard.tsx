@@ -62,8 +62,8 @@ export default function DeliveryCard({
 
   const handleNavigate = () => {
     // Exact destination coordinates
-    const lat = assignment.customerLocation?.lat || 50.037;
-    const lng = assignment.customerLocation?.lng || -110.66;
+    const lat = assignment.customerLocation?.lat || 22.1818;
+    const lng = assignment.customerLocation?.lng || 78.7618;
 
     // Fetch the driver's current exact location for the origin
     if (navigator.geolocation) {
