@@ -233,8 +233,12 @@ export default function DashboardPage() {
   // Derived state
   const activeAssignments = assignments.filter((a) => a.status === "assigned" || a.status === "en-route");
   const activeOrderIds = activeAssignments.map((a) => a.orderId);
-  const isTracking = driver.status === "on-delivery" || driver.status === "returning";
-  const trackingPhase = driver.status === "returning" ? "returning" as const : "en-route" as const;
+  const isTracking = driver.status !== "offline";
+  const trackingPhase = driver.status === "returning"
+    ? ("returning" as const)
+    : driver.status === "available"
+      ? ("available" as const)
+      : ("en-route" as const);
 
   return (
     <div className="min-h-screen bg-black text-white p-4 relative pb-24">

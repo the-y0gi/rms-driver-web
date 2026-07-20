@@ -9,24 +9,44 @@ interface LocationTrackerProps {
   driverId: string;
   restaurantId: string;
   activeOrderIds: string[];
-  phase: "en-route" | "returning";
+  phase: "en-route" | "returning" | "available";
   onReachedRestaurant?: () => void;
 }
 
-// ─── Speed-based adaptive throttle intervals (ms) ───
-const INTERVAL_HIGHWAY = 3000;   // > 30 km/h  → every 3s
-const INTERVAL_CITY = 5000;      // 10-30 km/h → every 5s
-const INTERVAL_SLOW = 10000;     // < 10 km/h  → every 10s
-const INTERVAL_STATIONARY = 60000; // not moving → every 60s (heartbeat)
+// Static restaurant coordinates
+const RESTAURANT_COORDS: Coordinates = { lat: 22.1818, lng: 78.7618 };
 
 const STATIONARY_DISTANCE_M = 2; // Less than 2m movement = stationary
+const GEOFENCE_RADIUS_M = 100; // Geofence radius of 100m around restaurant
 
-function getMinInterval(speedKmh: number, distanceFromLast: number): number {
-  // If barely moved, driver is stationary (red light, parked, etc.)
-  if (distanceFromLast < STATIONARY_DISTANCE_M) return INTERVAL_STATIONARY;
-  if (speedKmh > 30) return INTERVAL_HIGHWAY;
-  if (speedKmh >= 10) return INTERVAL_CITY;
-  return INTERVAL_SLOW;
+// ─── Speed-based adaptive throttle intervals (ms) ───
+const INTERVAL_HIGHWAY = 3000;     // > 30 km/h  → every 3s
+const INTERVAL_CITY = 5000;        // 10-30 km/h → every 5s
+const INTERVAL_SLOW = 10000;       // < 10 km/h  → every 10s
+const INTERVAL_STATIONARY = 60000; // not moving → every 60s (heartbeat)
+
+function getMinInterval(
+  phase: "en-route" | "returning" | "available",
+  speedKmh: number,
+  distanceFromLast: number
+): number {
+  if (phase === "en-route") {
+    if (distanceFromLast < STATIONARY_DISTANCE_M) return INTERVAL_STATIONARY;
+    if (speedKmh > 30) return INTERVAL_HIGHWAY;
+    if (speedKmh >= 10) return INTERVAL_CITY;
+    return INTERVAL_SLOW;
+  }
+
+  if (phase === "returning") {
+    if (distanceFromLast < STATIONARY_DISTANCE_M) return 120000; // 2 min heartbeat when stationary
+    if (speedKmh > 30) return 20000; // 20s highway
+    if (speedKmh >= 10) return 30000; // 30s city
+    return 45000; // 45s slow
+  }
+
+  // available phase
+  if (distanceFromLast < STATIONARY_DISTANCE_M) return 180000; // 3 min heartbeat when stationary
+  return 60000; // 60s when moving
 }
 
 export default function LocationTracker({
@@ -40,11 +60,11 @@ export default function LocationTracker({
   const lastSentPosRef = useRef<Coordinates | null>(null);
   const lastSentTimeRef = useRef<number>(0);
   const isCompletedRef = useRef<boolean>(false);
-  const restaurantCoordsRef = useRef<Coordinates | null>(null);
   const latestPosRef = useRef<Coordinates | null>(null);
   const latestSpeedRef = useRef<number>(0);
   const orderChannelsRef = useRef<Channel[]>([]);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasSnappedRef = useRef<boolean>(false);
 
   // Stable reference to onReachedRestaurant to avoid effect re-runs
   const onReachedRef = useRef(onReachedRestaurant);
@@ -59,27 +79,48 @@ export default function LocationTracker({
   // ─── Broadcast location via Pusher client events ───
   const broadcastLocation = useCallback((coords: Coordinates, speed: number) => {
     const now = Date.now();
+    const distanceToRestaurant = getDistanceMeters(coords, RESTAURANT_COORDS);
+
+    let finalCoords = coords;
+    let finalSpeed = speed;
+
+    // ─── Geofencing Optimization ───
+    if (phaseRef.current === "available" && distanceToRestaurant < GEOFENCE_RADIUS_M) {
+      if (hasSnappedRef.current) {
+        // Already snapped and broadcasted. Suppress subsequent triggers to optimize Pusher count.
+        return;
+      }
+      // First time inside geofence: Snap to restaurant coordinates and broadcast once
+      finalCoords = RESTAURANT_COORDS;
+      finalSpeed = 0;
+      hasSnappedRef.current = true;
+      console.log("[LocationTracker] Snapping driver to restaurant geofence.");
+    } else {
+      // Outside geofence or not available: Resume normal tracking
+      hasSnappedRef.current = false;
+    }
+
     const distanceFromLast = lastSentPosRef.current
-      ? getDistanceMeters(lastSentPosRef.current, coords)
+      ? getDistanceMeters(lastSentPosRef.current, finalCoords)
       : Infinity;
     const timeSinceLast = now - lastSentTimeRef.current;
 
-    // Smart adaptive throttle: skip if too soon based on current speed
-    const minInterval = getMinInterval(speed, distanceFromLast);
-    if (timeSinceLast < minInterval && lastSentPosRef.current) {
-      return; // Throttled — too soon to send
+    // Smart adaptive throttle: skip if too soon based on current speed/phase
+    const minInterval = getMinInterval(phaseRef.current, finalSpeed, distanceFromLast);
+    if (timeSinceLast < minInterval && lastSentPosRef.current && !hasSnappedRef.current) {
+      return; // Throttled — too soon to send (unless it's the first snap event)
     }
 
     const bearing = lastSentPosRef.current
-      ? getBearing(lastSentPosRef.current, coords)
+      ? getBearing(lastSentPosRef.current, finalCoords)
       : 0;
 
     const payload = {
       driverId,
-      lat: coords.lat,
-      lng: coords.lng,
+      lat: finalCoords.lat,
+      lng: finalCoords.lng,
       bearing,
-      speed,
+      speed: finalSpeed,
       phase: phaseRef.current,
       timestamp: now,
     };
@@ -101,7 +142,7 @@ export default function LocationTracker({
       });
 
       // Update refs after successful broadcast
-      lastSentPosRef.current = coords;
+      lastSentPosRef.current = finalCoords;
       lastSentTimeRef.current = now;
     } catch (err) {
       console.error("[LocationTracker] Failed to broadcast location:", err);
@@ -139,10 +180,6 @@ export default function LocationTracker({
         latestPosRef.current = coords;
         latestSpeedRef.current = speed;
 
-        if (!restaurantCoordsRef.current) {
-          restaurantCoordsRef.current = coords;
-        }
-
         // Force send initial location (bypass throttle)
         lastSentTimeRef.current = 0;
         broadcastLocation(coords, speed);
@@ -175,20 +212,15 @@ export default function LocationTracker({
       latestPosRef.current = coords;
       latestSpeedRef.current = speedKmh;
 
-      if (!restaurantCoordsRef.current) {
-        restaurantCoordsRef.current = coords;
-      }
-
       // Broadcast with smart throttle (function decides whether to send or skip)
       broadcastLocation(coords, speedKmh);
 
       // Return trip: auto-detect when within 200m of restaurant
       if (
         phaseRef.current === "returning" &&
-        !isCompletedRef.current &&
-        restaurantCoordsRef.current
+        !isCompletedRef.current
       ) {
-        const distToRestaurant = getDistanceMeters(coords, restaurantCoordsRef.current);
+        const distToRestaurant = getDistanceMeters(coords, RESTAURANT_COORDS);
         if (distToRestaurant < 200) {
           isCompletedRef.current = true;
           console.log("[LocationTracker] Reached restaurant!");
