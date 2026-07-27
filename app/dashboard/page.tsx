@@ -76,12 +76,18 @@ export default function DashboardPage() {
     const session = JSON.parse(saved);
     setDriver(session);
 
-    // Sync status with database to prevent reset on reload
+    // Sync status with database to prevent reset on reload & auto-logout if checked out on POS
     api.get(`/delivery/driver/${session._id}`)
       .then((res) => {
         if (res.data.success && res.data.data) {
-          setDriver(res.data.data);
-          localStorage.setItem("driver_session", JSON.stringify(res.data.data));
+          const fresh = res.data.data;
+          if (fresh.status === "offline" || fresh.posCheckedIn === false) {
+            localStorage.removeItem("driver_session");
+            router.push("/?error=checked_out");
+            return;
+          }
+          setDriver(fresh);
+          localStorage.setItem("driver_session", JSON.stringify(fresh));
         }
       })
       .catch((err) => console.error("Sync error:", err));
@@ -106,15 +112,13 @@ export default function DashboardPage() {
     if (!driver) return;
     fetchAssignments(driver._id);
 
-    // Pusher real-time assignment listener
+    // Pusher real-time assignment & status listener
     const pusher = getPusherClient();
     const channel = pusher.subscribe(`private-restaurant-${driver.restaurantId}`);
 
     channel.bind("delivery-assigned", (data: any) => {
-      // If assigned to this driver, fetch updated assignments
       if (data.driverId === driver._id) {
         fetchAssignments(driver._id);
-        // Automatically switch driver status to on-delivery and save to localStorage
         setDriver((prev) => {
           if (!prev) return null;
           const updated = { ...prev, status: "on-delivery" as const };
@@ -124,10 +128,17 @@ export default function DashboardPage() {
       }
     });
 
+    channel.bind("driver-status-changed", (data: any) => {
+      if (data.driverId === driver._id && data.status === "offline") {
+        localStorage.removeItem("driver_session");
+        router.push("/?error=checked_out");
+      }
+    });
+
     return () => {
       pusher.unsubscribe(`private-restaurant-${driver.restaurantId}`);
     };
-  }, [driver, fetchAssignments]);
+  }, [driver, fetchAssignments, router]);
 
   const toggleStatus = async () => {
     if (!driver || statusLoading) return;
@@ -306,7 +317,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Live GPS Active Banner */}
-        {isTracking && (
+        {/* {isTracking && (
           <div className="flex flex-col gap-3 mt-4">
             <div className="flex items-center gap-2.5 p-3.5 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-xl text-xs font-semibold leading-relaxed">
               <Compass size={15} className="animate-spin shrink-0" />
@@ -327,7 +338,7 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
-        )}
+        )} */}
       </section>
 
       {/* Deliveries Section */}
