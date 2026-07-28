@@ -309,7 +309,7 @@ export default function LoginPage() {
                 type="text"
                 value={driverId}
                 onChange={(e) => setDriverId(e.target.value.toUpperCase())}
-                placeholder="e.g. EMP-001"
+                placeholder="e.g. 001"
                 className="w-full bg-neutral-900/60 border border-neutral-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder-neutral-600 outline-none transition-all uppercase font-mono"
               />
             </div>
