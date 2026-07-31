@@ -72,6 +72,7 @@ export default function LocationTracker({
   const orderChannelsRef = useRef<Channel[]>([]);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasSnappedRef = useRef<boolean>(false);
+  const wakeLockSentinelRef = useRef<any>(null);
 
   // Stable reference to onReachedRestaurant to avoid effect re-runs
   const onReachedRef = useRef(onReachedRestaurant);
@@ -161,6 +162,28 @@ export default function LocationTracker({
       console.warn("[LocationTracker] Geolocation is not supported.");
       return;
     }
+
+    // ─── PWA Screen Wake Lock API — Keeps screen awake during duty so GPS never dies ───
+    const requestWakeLock = async () => {
+      if (typeof window !== "undefined" && "wakeLock" in navigator) {
+        try {
+          wakeLockSentinelRef.current = await (navigator as any).wakeLock.request("screen");
+          console.log("[PWA WakeLock] Screen Wake Lock active for GPS tracking.");
+        } catch (err) {
+          console.warn("[PWA WakeLock] Screen Wake Lock request failed:", err);
+        }
+      }
+    };
+
+    requestWakeLock();
+
+    // Re-acquire WakeLock if driver switches back to app
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !wakeLockSentinelRef.current) {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     const pusher = getPusherClient();
 
@@ -269,6 +292,13 @@ export default function LocationTracker({
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
+      }
+
+      // Release PWA Screen WakeLock
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (wakeLockSentinelRef.current) {
+        wakeLockSentinelRef.current.release().catch(() => {});
+        wakeLockSentinelRef.current = null;
       }
 
       // Unsubscribe from order channels only (restaurant channel stays for dashboard)

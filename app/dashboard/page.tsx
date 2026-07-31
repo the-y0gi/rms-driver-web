@@ -6,23 +6,13 @@ import api from "../../lib/api";
 import { getPusherClient } from "../../lib/pusher";
 import DeliveryCard from "../../components/DeliveryCard";
 import LocationTracker from "../../components/LocationTracker";
-import { LogOut, Power, Truck, User, RefreshCw, Compass, CheckCircle } from "lucide-react";
+import { LogOut, Power, Truck, RefreshCw, Compass, Zap, Activity, MapPin, Package, Download, Car } from "lucide-react";
 
-interface Vehicle {
-  _id: string;
-  number: string;
-  label: string;
-}
-
+interface Vehicle { _id: string; number: string; label: string; }
 interface DriverSession {
-  _id: string;
-  driverId: string;
-  name: string;
-  phone: string;
-  color: string;
+  _id: string; driverId: string; name: string; phone: string; color: string;
   status: "available" | "on-delivery" | "returning" | "offline";
-  restaurantId: string;
-  assignedVehicle: Vehicle | null;
+  restaurantId: string; assignedVehicle: Vehicle | null;
 }
 
 export default function DashboardPage() {
@@ -33,245 +23,194 @@ export default function DashboardPage() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean | null>(null);
   const [restaurantCoords, setRestaurantCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+  const [todayCount, setTodayCount] = useState(0);
 
-  // Check compulsory GPS
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setHasLocationPermission(false);
-      return;
-    }
-
-    const checkLocation = () => {
-      navigator.geolocation.getCurrentPosition(
-        () => setHasLocationPermission(true),
-        (err) => {
-          console.error("Compulsory Location error:", err);
-          setHasLocationPermission(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    };
-
-    checkLocation();
-
-    if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'geolocation' as any }).then((result) => {
-        result.onchange = () => {
-          if (result.state === 'granted') {
-            setHasLocationPermission(true);
-          } else {
-            setHasLocationPermission(false);
-          }
-        };
-      });
-    }
+    const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e); setIsInstallable(true); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  // Load driver session and sync with backend
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") { setIsInstallable(false); setDeferredPrompt(null); }
+  };
+
+  useEffect(() => {
+    if (!navigator.geolocation) { setHasLocationPermission(false); return; }
+    navigator.geolocation.getCurrentPosition(
+      () => setHasLocationPermission(true),
+      () => setHasLocationPermission(false),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }, []);
+
   useEffect(() => {
     const saved = localStorage.getItem("driver_session");
-    if (!saved) {
-      router.push("/");
-      return;
-    }
+    if (!saved) { router.push("/"); return; }
     const session = JSON.parse(saved);
     setDriver(session);
-
-    // Sync status with database to prevent reset on reload & auto-logout if checked out on POS
-    api.get(`/delivery/driver/${session._id}`)
-      .then((res) => {
-        if (res.data.success && res.data.data) {
-          const fresh = res.data.data;
-          if (fresh.status === "offline" || fresh.posCheckedIn === false) {
-            localStorage.removeItem("driver_session");
-            router.push("/?error=checked_out");
-            return;
-          }
-          setDriver(fresh);
-          localStorage.setItem("driver_session", JSON.stringify(fresh));
-
-          // Fetch restaurant GPS coordinates from settings API
-          const branchId = fresh.restaurantId || session.restaurantId;
-          if (branchId && branchId !== "default") {
-            api.get(`/branches/settings?branchId=${branchId}`)
-              .then((settingsRes) => {
-                if (settingsRes.data.success && settingsRes.data.data?.mainSettings) {
-                  const ms = settingsRes.data.data.mainSettings;
-                  const lat = Number(ms.latitude);
-                  const lng = Number(ms.longitude);
-                  if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-                    setRestaurantCoords({ lat, lng });
-                  }
-                }
-              })
-              .catch((err) => console.warn("[Driver] Could not fetch restaurant coords:", err));
-          }
+    api.get(`/delivery/driver/${session._id}`).then((res) => {
+      if (res.data.success && res.data.data) {
+        const fresh = res.data.data;
+        if (fresh.status === "offline" || fresh.posCheckedIn === false) {
+          localStorage.removeItem("driver_session");
+          router.push("/?error=checked_out");
+          return;
         }
-      })
-      .catch((err) => console.error("Sync error:", err));
+        setDriver(fresh);
+        localStorage.setItem("driver_session", JSON.stringify(fresh));
+        const branchId = fresh.restaurantId || session.restaurantId;
+        if (branchId && branchId !== "default") {
+          api.get(`/branches/settings?branchId=${branchId}`).then((r) => {
+            if (r.data.success && r.data.data?.mainSettings) {
+              const ms = r.data.data.mainSettings;
+              const lat = Number(ms.latitude), lng = Number(ms.longitude);
+              if (!isNaN(lat) && !isNaN(lng) && lat !== 0) setRestaurantCoords({ lat, lng });
+            }
+          }).catch(() => {});
+        }
+      }
+    }).catch(() => {});
   }, [router]);
 
-  // Fetch active assignments for driver
   const fetchAssignments = useCallback(async (driverId: string) => {
     try {
-      const response = await api.get(`/delivery/driver/${driverId}/assignments`);
-      if (response.data.success) {
-        setAssignments(response.data.data);
+      const res = await api.get(`/delivery/driver/${driverId}/assignments`);
+      if (res.data.success) {
+        setAssignments(res.data.data);
+        setTodayCount(res.data.data.filter((a: any) => a.status === "completed").length);
       }
-    } catch (err) {
-      console.error("Error fetching assignments:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, []);
 
-  // Sync state on load
   useEffect(() => {
     if (!driver) return;
     fetchAssignments(driver._id);
-
-    // Pusher real-time assignment & status listener
     const pusher = getPusherClient();
     const channel = pusher.subscribe(`private-restaurant-${driver.restaurantId}`);
-
     channel.bind("delivery-assigned", (data: any) => {
       if (data.driverId === driver._id) {
         fetchAssignments(driver._id);
         setDriver((prev) => {
           if (!prev) return null;
-          const updated = { ...prev, status: "on-delivery" as const };
-          localStorage.setItem("driver_session", JSON.stringify(updated));
-          return updated;
+          const u = { ...prev, status: "on-delivery" as const };
+          localStorage.setItem("driver_session", JSON.stringify(u));
+          return u;
         });
       }
     });
-
     channel.bind("driver-status-changed", (data: any) => {
       if (data.driverId === driver._id && data.status === "offline") {
         localStorage.removeItem("driver_session");
         router.push("/?error=checked_out");
       }
     });
-
-    return () => {
-      pusher.unsubscribe(`private-restaurant-${driver.restaurantId}`);
-    };
+    return () => { pusher.unsubscribe(`private-restaurant-${driver.restaurantId}`); };
   }, [driver, fetchAssignments, router]);
 
   const toggleStatus = async () => {
     if (!driver || statusLoading) return;
     setStatusLoading(true);
-
     const newStatus: "available" | "offline" = driver.status === "offline" ? "available" : "offline";
-
     try {
-      const res = await api.patch(`/delivery/driver/${driver._id}/status`, {
-        status: newStatus,
-      });
-
+      const res = await api.patch(`/delivery/driver/${driver._id}/status`, { status: newStatus });
       if (res.data.success) {
-        const updated = { ...driver, status: newStatus };
-        setDriver(updated);
-        localStorage.setItem("driver_session", JSON.stringify(updated));
+        const u = { ...driver, status: newStatus };
+        setDriver(u);
+        localStorage.setItem("driver_session", JSON.stringify(u));
       }
-    } catch (err) {
-      console.error("Error updating status:", err);
-    } finally {
-      setStatusLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setStatusLoading(false); }
   };
 
   const handleMarkDelivered = async (assignmentId: string) => {
     try {
       const res = await api.patch(`/delivery/driver/deliver/${assignmentId}`);
       if (res.data.success && driver) {
-        // Update local status
-        const updated = { ...driver, status: "returning" as const };
-        setDriver(updated);
-        localStorage.setItem("driver_session", JSON.stringify(updated));
+        const u = { ...driver, status: "returning" as const };
+        setDriver(u);
+        localStorage.setItem("driver_session", JSON.stringify(u));
         fetchAssignments(driver._id);
       }
-    } catch (err) {
-      console.error("Failed to mark delivered", err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const handleReachedRestaurant = async () => {
     if (!driver) return;
-    // Find active assignment that was returning
-    const returningAssignment = assignments.find((a) => a.status === "delivered");
-    if (!returningAssignment) return;
-
+    const ret = assignments.find((a) => a.status === "delivered");
+    if (!ret) return;
     try {
-      const res = await api.patch(`/delivery/driver/complete/${returningAssignment._id}`);
+      const res = await api.patch(`/delivery/driver/complete/${ret._id}`);
       if (res.data.success) {
-        // Reset driver state
-        const updated = { ...driver, status: "available" as const };
-        setDriver(updated);
-        localStorage.setItem("driver_session", JSON.stringify(updated));
+        const u = { ...driver, status: "available" as const };
+        setDriver(u);
+        localStorage.setItem("driver_session", JSON.stringify(u));
         fetchAssignments(driver._id);
+        setTodayCount(p => p + 1);
       }
-    } catch (err) {
-      console.error("Failed to complete assignment", err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const handleLogout = async () => {
-    if (driver) {
-      try {
-        await api.patch(`/delivery/driver/${driver._id}/status`, {
-          status: "offline",
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    }
+    if (driver) { try { await api.patch(`/delivery/driver/${driver._id}/status`, { status: "offline" }); } catch {} }
     localStorage.removeItem("driver_session");
     router.push("/");
   };
 
+  // ── GPS Error Screen ──
   if (hasLocationPermission === false) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 bg-red-900/30 border border-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-4">
-          <Compass size={32} />
+      <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center p-6 text-center gap-4">
+        <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+          <Compass size={24} className="text-red-400" />
         </div>
-        <h2 className="text-xl font-black mb-2">GPS Location Required</h2>
-        <p className="text-neutral-400 text-sm mb-6 max-w-sm leading-relaxed">
-          The driver app strictly requires live GPS tracking to function properly. Please enable location access in your browser or device settings to continue.
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold active:scale-95 transition-all shadow-lg flex items-center gap-2"
-        >
-          <RefreshCw size={16} />
-          <span>I've enabled it, Check Again</span>
+        <div>
+          <p className="text-sm font-bold text-white mb-1">GPS Required</p>
+          <p className="text-xs text-[#666] leading-relaxed max-w-xs">Enable location access in browser settings to use the driver app.</p>
+        </div>
+        <button onClick={() => window.location.reload()} className="bg-emerald-500 text-black text-xs font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 active:scale-95 transition-all">
+          <RefreshCw size={13} /> Retry
         </button>
       </div>
     );
   }
 
+  // ── Loading Screen ──
   if (!driver || hasLocationPermission === null) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-neutral-800 border-t-blue-500 rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#080808] flex items-center justify-center">
+        <div className="w-5 h-5 border-2 border-[#222] border-t-emerald-500 rounded-full animate-spin" />
       </div>
     );
   }
 
-  // Derived state
   const activeAssignments = assignments.filter((a) => a.status === "assigned" || a.status === "en-route");
   const activeOrderIds = activeAssignments.map((a) => a.orderId);
   const isTracking = driver.status !== "offline";
-  const trackingPhase = driver.status === "returning"
-    ? ("returning" as const)
-    : driver.status === "available"
-      ? ("available" as const)
-      : ("en-route" as const);
+  const trackingPhase = driver.status === "returning" ? "returning" as const : driver.status === "available" ? "available" as const : "en-route" as const;
+  const isOnline = driver.status !== "offline";
+
+  const statusLabel: Record<string, string> = {
+    available: "Active & Available",
+    "on-delivery": "On Delivery",
+    returning: "Returning to Store",
+    offline: "Offline",
+  };
+  const statusDotColor: Record<string, string> = {
+    available: "#10b981",
+    "on-delivery": "#3b82f6",
+    returning: "#a855f7",
+    offline: "#444",
+  };
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 relative pb-24">
-      {/* LocationTracker background element */}
+    <div className="min-h-screen bg-[#080808] text-white" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       {isTracking && (
         <LocationTracker
           driverId={driver._id}
@@ -283,124 +222,186 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Header */}
-      <header className="flex items-center justify-between bg-neutral-950 border border-neutral-900 p-4 rounded-2xl mb-5 shadow-lg">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full border-2 flex items-center justify-center text-neutral-300"
-            style={{ borderColor: driver.color }}
-          >
-            <User size={18} />
-          </div>
-          <div>
-            <h2 className="text-sm font-black leading-none">{driver.name}</h2>
-            <p className="text-[11px] text-neutral-500 mt-1 font-semibold tracking-wide uppercase">
-              {driver.assignedVehicle ? `${driver.assignedVehicle.label}` : "No Vehicle"}
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={handleLogout}
-          className="w-9 h-9 bg-red-950/20 border border-red-500/10 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500/10 active:scale-90 transition-all cursor-pointer"
-          title="Sign out"
-        >
-          <LogOut size={16} />
-        </button>
-      </header>
-
-      {/* Online/Offline Status Panel */}
-      <section className="bg-neutral-950 border border-neutral-900 p-5 rounded-2xl mb-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <span className="text-xs text-neutral-500 block uppercase font-bold tracking-wide">
-              Duty Status
-            </span>
-            <span className="text-base font-black text-neutral-200 mt-0.5 block">
-              {driver.status === "offline" ? "Offline" : driver.status === "available" ? "Active / Available" : driver.status === "on-delivery" ? "On Delivery" : "Returning"}
-            </span>
-          </div>
-
-          <button
-            onClick={toggleStatus}
-            disabled={driver.status === "on-delivery" || driver.status === "returning" || statusLoading}
-            className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-              driver.status === "offline"
-                ? "bg-neutral-900 border-neutral-800 text-neutral-400 hover:bg-neutral-800"
-                : "bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
-            }`}
-          >
-            <Power size={13} />
-            <span>{driver.status === "offline" ? "Go Online" : "Go Offline"}</span>
-          </button>
-        </div>
-
-        {/* Live GPS Active Banner */}
-        {/* {isTracking && (
-          <div className="flex flex-col gap-3 mt-4">
-            <div className="flex items-center gap-2.5 p-3.5 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-xl text-xs font-semibold leading-relaxed">
-              <Compass size={15} className="animate-spin shrink-0" />
-              <span>
-                {trackingPhase === "en-route"
-                  ? "Live GPS tracking is active. Users are viewing your location."
-                  : "Return tracking is active. Navigating back to restaurant."}
-              </span>
+      {/* ── HEADER ── */}
+      <div className="px-4 pt-12 pb-4 border-b border-[#141414]">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* Avatar */}
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0"
+              style={{ background: driver.color || "#10b981" }}
+            >
+              {driver.name.charAt(0).toUpperCase()}
             </div>
-            
-            {trackingPhase === "returning" && (
-              <button
-                onClick={handleReachedRestaurant}
-                className="w-full bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 py-3.5 rounded-xl font-bold text-xs transition-all active:scale-[0.98] cursor-pointer shadow-md shadow-emerald-900/20 flex justify-center items-center gap-2"
-              >
-                <CheckCircle size={16} />
-                <span>Mark Reached Restaurant (Available)</span>
-              </button>
-            )}
+            <div>
+              <p className="text-[11px] text-[#555] font-medium">Driver</p>
+              <p className="text-sm font-bold text-white leading-tight">{driver.name}</p>
+              {driver.assignedVehicle && (
+                <p className="text-[10px] text-[#444] mt-0.5">{driver.assignedVehicle.label}</p>
+              )}
+            </div>
           </div>
-        )} */}
-      </section>
-
-      {/* Deliveries Section */}
-      <section>
-        <div className="flex items-center justify-between mb-4 px-1">
-          <h3 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
-            <Truck size={14} />
-            <span>Assigned Deliveries</span>
-          </h3>
           <button
-            onClick={() => fetchAssignments(driver._id)}
-            className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
+            onClick={handleLogout}
+            className="w-9 h-9 rounded-xl bg-[#111] border border-[#1e1e1e] text-[#555] flex items-center justify-center active:scale-90 transition-all"
           >
-            <RefreshCw size={13} />
+            <LogOut size={15} />
           </button>
         </div>
+      </div>
 
-        {loading ? (
-          <div className="text-center py-12 text-neutral-500">
-            <div className="w-8 h-8 border-2 border-neutral-800 border-t-blue-500 rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-xs font-semibold">Loading assignments...</p>
+      <div className="px-4 py-4 space-y-3">
+
+        {/* ── DUTY TOGGLE ── */}
+        <button
+          onClick={toggleStatus}
+          disabled={driver.status === "on-delivery" || driver.status === "returning" || statusLoading}
+          className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            background: isOnline ? "#10b981" : "#111",
+            border: isOnline ? "1px solid #059669" : "1px solid #1e1e1e",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ background: isOnline ? "rgba(0,0,0,0.2)" : "#1a1a1a" }}
+            >
+              {statusLoading
+                ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                : <Power size={16} className={isOnline ? "text-white" : "text-[#444]"} />
+              }
+            </div>
+            <div className="text-left">
+              <p className={`text-[10px] font-semibold ${isOnline ? "text-emerald-100/70" : "text-[#444]"}`}>
+                {isOnline ? "Tap to go offline" : "Tap to start duty"}
+              </p>
+              <p className={`text-sm font-bold leading-tight ${isOnline ? "text-white" : "text-[#555]"}`}>
+                {statusLoading ? "Updating..." : isOnline ? "On Duty" : "Off Duty"}
+              </p>
+            </div>
           </div>
-        ) : assignments.length === 0 ? (
-          <div className="text-center py-16 bg-neutral-950/50 border border-dashed border-neutral-800 rounded-2xl p-6 text-neutral-500">
-            <Truck size={28} className="mx-auto mb-3 text-neutral-700" />
-            <p className="text-xs font-bold text-neutral-400">No active deliveries</p>
-            <p className="text-[11px] text-neutral-600 mt-1 max-w-[200px] mx-auto leading-normal">
-              When a manager assigns a delivery, it will appear here in real-time.
-            </p>
+          {/* Status dot */}
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{
+                background: isOnline ? "white" : "#333",
+                boxShadow: isOnline ? "0 0 6px rgba(255,255,255,0.5)" : "none",
+              }}
+            />
           </div>
-        ) : (
-          <div className="space-y-4">
-            {assignments.map((assignment) => (
-              <DeliveryCard
-                key={assignment._id}
-                assignment={assignment}
-                onMarkDelivered={handleMarkDelivered}
-                onReachedRestaurant={handleReachedRestaurant}
-              />
-            ))}
+        </button>
+
+        {/* ── STATUS ROW ── */}
+        <div
+          className="flex items-center justify-between px-3.5 py-2.5 rounded-xl"
+          style={{ background: "#0d0d0d", border: "1px solid #181818" }}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{
+                background: statusDotColor[driver.status],
+                boxShadow: isOnline ? `0 0 6px ${statusDotColor[driver.status]}` : "none",
+              }}
+            />
+            <span className="text-xs text-[#888] font-medium">{statusLabel[driver.status]}</span>
+          </div>
+          {isOnline && (
+            <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
+              <Zap size={10} /> GPS Live
+            </span>
+          )}
+        </div>
+
+        {/* ── STATS ── */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "Delivered", value: String(todayCount), icon: Package },
+            { label: "Active", value: String(activeAssignments.length), icon: Activity },
+            { label: "GPS", value: isOnline ? "Live" : "Off", icon: MapPin },
+          ].map(({ label, value, icon: Icon }) => (
+            <div
+              key={label}
+              className="rounded-xl p-3 flex flex-col gap-1.5"
+              style={{ background: "#0d0d0d", border: "1px solid #181818" }}
+            >
+              <Icon size={13} className="text-[#444]" />
+              <p className="text-sm font-bold text-white">{value}</p>
+              <p className="text-[9px] text-[#444] uppercase tracking-wide font-semibold">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── PWA INSTALL ── */}
+        {isInstallable && (
+          <div className="flex items-center justify-between px-3.5 py-3 rounded-xl" style={{ background: "#0d1f18", border: "1px solid #10b98120" }}>
+            <div className="flex items-center gap-2.5">
+              <Download size={14} className="text-emerald-400 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-white">Install App</p>
+                <p className="text-[10px] text-[#555]">Add to home screen</p>
+              </div>
+            </div>
+            <button
+              onClick={handleInstallPWA}
+              className="bg-emerald-500 text-black text-[10px] font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-all"
+            >
+              Install
+            </button>
           </div>
         )}
-      </section>
+
+        {/* ── DELIVERIES ── */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2">
+              <Truck size={13} className="text-[#444]" />
+              <span className="text-xs font-semibold text-[#666]">
+                Assigned Deliveries
+                {assignments.length > 0 && (
+                  <span className="ml-1.5 bg-emerald-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full">{assignments.length}</span>
+                )}
+              </span>
+            </div>
+            <button
+              onClick={() => driver && fetchAssignments(driver._id)}
+              className="w-7 h-7 rounded-lg bg-[#111] border border-[#1e1e1e] text-[#444] flex items-center justify-center active:scale-90 transition-all"
+            >
+              <RefreshCw size={12} />
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-5 h-5 border-2 border-[#1e1e1e] border-t-emerald-500 rounded-full animate-spin" />
+            </div>
+          ) : assignments.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-12 rounded-2xl text-center"
+              style={{ background: "#0a0a0a", border: "1px dashed #1a1a1a" }}
+            >
+              <Truck size={28} className="text-[#252525] mb-3" />
+              <p className="text-xs font-semibold text-[#444] mb-1">No active deliveries</p>
+              <p className="text-[11px] text-[#2e2e2e] max-w-[180px] leading-relaxed">
+                New orders will appear here instantly.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {assignments.map((assignment) => (
+                <DeliveryCard
+                  key={assignment._id}
+                  assignment={assignment}
+                  onMarkDelivered={handleMarkDelivered}
+                  onReachedRestaurant={handleReachedRestaurant}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,239 +1,176 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  MapPin,
-  Phone,
-  CheckCircle,
-  Navigation,
-  Package,
-  DollarSign,
-} from "lucide-react";
-
-interface OrderItem {
-  name: string;
-  quantity: number;
-}
+import { MapPin, Phone, CheckCircle, Navigation2, Package, IndianRupee } from "lucide-react";
 
 interface OrderDetails {
-  _id: string;
-  orderNumber: string;
-  customerName: string;
-  customerPhone: string;
-  deliveryAddress: string;
-  items: string[];
-  total: number;
+  _id: string; orderNumber: string; customerName: string;
+  customerPhone: string; deliveryAddress: string;
+  items: string[]; total: number;
 }
-
 interface Assignment {
-  _id: string;
-  orderId: string;
+  _id: string; orderId: string;
   status: "assigned" | "en-route" | "delivered" | "completed";
   order: OrderDetails | null;
   customerLocation?: { lat: number; lng: number; address: string };
 }
-
 interface DeliveryCardProps {
   assignment: Assignment;
   onMarkDelivered: (assignmentId: string) => Promise<void>;
   onReachedRestaurant?: () => Promise<void>;
 }
 
-export default function DeliveryCard({
-  assignment,
-  onMarkDelivered,
-  onReachedRestaurant,
-}: DeliveryCardProps) {
+const STATUS_CONFIG: Record<string, { label: string; color: string; accent: string }> = {
+  assigned:   { label: "New",       color: "#f59e0b", accent: "#f59e0b20" },
+  "en-route": { label: "En Route",  color: "#3b82f6", accent: "#3b82f620" },
+  delivered:  { label: "Delivered", color: "#a855f7", accent: "#a855f720" },
+  completed:  { label: "Done",      color: "#10b981", accent: "#10b98120" },
+};
+
+export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRestaurant }: DeliveryCardProps) {
   const [loading, setLoading] = useState(false);
   const { order, status } = assignment;
-
   if (!order) return null;
+
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.assigned;
 
   const handleDeliver = async () => {
     setLoading(true);
-    try {
-      await onMarkDelivered(assignment._id);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    try { await onMarkDelivered(assignment._id); }
+    catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   const handleNavigate = () => {
-    // Exact destination coordinates
     const lat = assignment.customerLocation?.lat || 22.1818;
     const lng = assignment.customerLocation?.lng || 78.7618;
-
-    // Fetch the driver's current exact location for the origin
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const originLat = pos.coords.latitude;
-          const originLng = pos.coords.longitude;
-          const url = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${lat},${lng}`;
-          window.open(url, "_blank");
-        },
-        (err) => {
-          console.error("Failed to get origin location for maps", err);
-          // Fallback to letting Google Maps determine location
-          const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-          window.open(url, "_blank");
-        },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-      );
-    } else {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-      window.open(url, "_blank");
-    }
-  };
-
-  const getStatusColor = () => {
-    switch (status) {
-      case "assigned":
-      case "en-route":
-        return "bg-blue-500/10 text-blue-400 border-blue-500/20";
-      case "delivered":
-        return "bg-purple-500/10 text-purple-400 border-purple-500/20";
-      case "completed":
-        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-    }
-  };
-
-  const getStatusText = () => {
-    switch (status) {
-      case "assigned":
-      case "en-route":
-        return "En Route";
-      case "delivered":
-        return "Returning to Restaurant";
-      case "completed":
-        return "Completed";
-    }
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => window.open(`https://www.google.com/maps/dir/?api=1&origin=${pos.coords.latitude},${pos.coords.longitude}&destination=${lat},${lng}`, "_blank"),
+      () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, "_blank"),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
   };
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 shadow-xl hover:shadow-2xl transition-all duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-          <span className="text-sm font-bold text-neutral-400">
-            Order #{order.orderNumber}
-          </span>
-        </div>
-        <span
-          className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusColor()}`}
-        >
-          {getStatusText()}
-        </span>
-      </div>
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{ background: "#0d0d0d", border: "1px solid #1e1e1e" }}
+    >
+      {/* Top accent line */}
+      <div className="h-[2px]" style={{ background: cfg.color }} />
 
-      {/* Customer Info */}
-      <div className="space-y-3 mb-5">
-        <div className="flex items-start gap-3">
-          <MapPin className="text-neutral-500 shrink-0 mt-0.5" size={16} />
-          <div>
-            <p className="text-xs font-semibold text-neutral-400">
-              Delivery Address
-            </p>
-            <p className="text-sm text-neutral-200 mt-0.5 leading-snug">
-              {order.deliveryAddress}
-            </p>
-          </div>
-        </div>
+      <div className="p-4 space-y-3">
 
-        <div className="flex items-center justify-between bg-neutral-950 p-3 rounded-xl border border-neutral-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-xs font-bold text-neutral-300">
-              {order.customerName.charAt(0)}
-            </div>
-            <div>
-              <p className="text-xs font-bold text-neutral-200">
-                {order.customerName}
-              </p>
-              <p className="text-xs text-neutral-500">{order.customerPhone}</p>
-            </div>
-          </div>
-          <a
-            href={`tel:${order.customerPhone}`}
-            className="w-8 h-8 rounded-full bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 flex items-center justify-center transition-colors cursor-pointer"
+        {/* ── Order # + Status badge ── */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-white">#{order.orderNumber}</span>
+          <span
+            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ background: cfg.accent, color: cfg.color }}
           >
-            <Phone size={14} />
-          </a>
-        </div>
-      </div>
-
-      {/* Order Items */}
-      <div className="mb-5">
-        <div className="flex items-center gap-1.5 text-xs text-neutral-400 font-semibold mb-2">
-          <Package size={14} />
-          <span>Items Details</span>
-        </div>
-        <ul className="text-xs text-neutral-300 space-y-1.5 pl-5 list-disc">
-          {order.items.map((item, idx) => (
-            <li key={idx}>{item}</li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Total & Navigation Button */}
-      <div className="flex items-center justify-between border-t border-neutral-800 pt-4 mb-4">
-        <div>
-          <span className="text-xs text-neutral-500 block">Total Amount</span>
-          <span className="text-lg font-black text-white flex items-center">
-            <DollarSign size={16} className="text-emerald-500" />
-            {order.total.toFixed(2)}
+            {cfg.label}
           </span>
         </div>
 
-        <button
-          onClick={handleNavigate}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-xs font-bold text-white rounded-xl shadow-lg transition-all cursor-pointer"
-        >
-          <Navigation size={13} />
-          <span>Navigate</span>
-        </button>
-      </div>
-
-      {/* Primary Action Button */}
-      {(status === "assigned" || status === "en-route") && (
-        <button
-          disabled={loading}
-          onClick={handleDeliver}
-          className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 disabled:opacity-50 active:scale-[0.98] text-sm font-bold text-white rounded-xl transition-all shadow-md shadow-emerald-900/10 flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <CheckCircle size={16} />
-          <span>{loading ? "Marking Delivered..." : "Mark as Delivered"}</span>
-        </button>
-      )}
-
-      {status === "delivered" && (
-        <div className="flex flex-col gap-2">
-          <div className="text-center py-3 bg-purple-500/5 border border-purple-500/15 rounded-xl">
-            <p className="text-xs font-semibold text-purple-400 animate-pulse">
-              GPS active. Returning to restaurant...
-            </p>
-          </div>
-          {onReachedRestaurant && (
-            <button
-              onClick={onReachedRestaurant}
-              className="w-full py-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-bold shadow-md transition-all active:scale-[0.98] cursor-pointer flex justify-center items-center gap-2"
+        {/* ── Customer + Call ── */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold text-white shrink-0"
+              style={{ background: "#1a1a1a" }}
             >
-              <CheckCircle size={16} />
-              <span>Mark Reached Restaurant (Available)</span>
-            </button>
+              {order.customerName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-white truncate">{order.customerName}</p>
+              <p className="text-[10px] text-[#555]">{order.customerPhone}</p>
+            </div>
+          </div>
+          {order.customerPhone && (
+            <a
+              href={`tel:${order.customerPhone}`}
+              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 active:scale-90 transition-all"
+              style={{ background: "#10b98115", border: "1px solid #10b98120" }}
+            >
+              <Phone size={13} className="text-emerald-400" />
+            </a>
           )}
         </div>
-      )}
 
-      {status === "completed" && (
-        <div className="text-center py-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl">
-          <p className="text-xs font-semibold text-emerald-400">
-            Delivery Completed successfully!
-          </p>
+        {/* ── Address ── */}
+        <div className="flex items-start gap-2">
+          <MapPin size={12} className="text-[#444] mt-0.5 shrink-0" />
+          <p className="text-[11px] text-[#888] leading-relaxed">{order.deliveryAddress}</p>
         </div>
-      )}
+
+        {/* ── Items ── */}
+        <div className="px-3 py-2.5 rounded-xl" style={{ background: "#080808", border: "1px solid #161616" }}>
+          <p className="text-[9px] text-[#444] uppercase font-semibold tracking-wide mb-1.5">
+            Items ({order.items.length})
+          </p>
+          {order.items.map((item, i) => (
+            <p key={i} className="text-[11px] text-[#666] leading-relaxed">· {item}</p>
+          ))}
+        </div>
+
+        {/* ── Amount + Navigate ── */}
+        <div className="flex items-center justify-between pt-0.5">
+          <div className="flex items-center gap-0.5">
+            <IndianRupee size={14} className="text-emerald-400" />
+            <span className="text-sm font-bold text-white">{order.total.toFixed(0)}</span>
+          </div>
+          <button
+            onClick={handleNavigate}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white active:scale-95 transition-all"
+            style={{ background: "#1e40af", border: "1px solid #3b82f625" }}
+          >
+            <Navigation2 size={13} />
+            Navigate
+          </button>
+        </div>
+
+        {/* ── Action Button ── */}
+        {(status === "assigned" || status === "en-route") && (
+          <button
+            disabled={loading}
+            onClick={handleDeliver}
+            className="w-full py-3 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition-all"
+            style={{
+              background: loading ? "#111" : "#059669",
+              border: "1px solid #10b98130",
+            }}
+          >
+            {loading
+              ? <><div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" /><span>Updating...</span></>
+              : <><CheckCircle size={15} /><span>Mark as Delivered</span></>
+            }
+          </button>
+        )}
+
+        {status === "delivered" && (
+          <div className="space-y-2">
+            <p className="text-center text-[11px] font-semibold text-purple-400 py-2 rounded-xl" style={{ background: "#a855f710" }}>
+              Delivered · Return to store
+            </p>
+            {onReachedRestaurant && (
+              <button
+                onClick={onReachedRestaurant}
+                className="w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.99] transition-all"
+                style={{ background: "#10b98110", border: "1px solid #10b98125", color: "#10b981" }}
+              >
+                <CheckCircle size={15} />
+                Reached Store — Go Available
+              </button>
+            )}
+          </div>
+        )}
+
+        {status === "completed" && (
+          <p className="text-center text-[11px] font-semibold text-emerald-400 py-2 rounded-xl" style={{ background: "#10b98110" }}>
+            ✓ Delivery Completed
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#0d0d0d" rx="80"/>
+  <!-- GPS Pin -->
+  <circle cx="256" cy="148" r="18" fill="#10b981"/>
+  <path d="M256 174 Q248 164 256 154" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round"/>
+  <path d="M256 174 Q264 164 256 154" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="174" x2="256" y2="196" stroke="#10b981" stroke-width="6" stroke-linecap="round"/>
+  <!-- Motorcycle body -->
+  <!-- Rear wheel -->
+  <circle cx="160" cy="340" r="52" fill="none" stroke="white" stroke-width="18"/>
+  <circle cx="160" cy="340" r="12" fill="white"/>
+  <!-- Front wheel -->
+  <circle cx="352" cy="340" r="52" fill="none" stroke="white" stroke-width="18"/>
+  <circle cx="352" cy="340" r="12" fill="white"/>
+  <!-- Frame -->
+  <path d="M160 340 L210 250 L280 250 L352 310" fill="none" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M240 250 L270 210 L330 210 L352 290" fill="none" stroke="white" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Seat/body top -->
+  <path d="M200 252 Q240 230 290 245" fill="none" stroke="white" stroke-width="14" stroke-linecap="round"/>
+  <!-- Handlebar -->
+  <path d="M330 210 L360 220 L365 205" fill="none" stroke="white" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

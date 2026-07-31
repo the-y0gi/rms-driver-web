@@ -3,7 +3,23 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "../lib/api";
-import { User, Lock, AlertCircle, Key, Truck, Eye, EyeOff, QrCode, Plus, ChevronDown, Building2, ShieldAlert } from "lucide-react";
+import {
+  User,
+  Lock,
+  AlertCircle,
+  Key,
+  Truck,
+  Eye,
+  EyeOff,
+  QrCode,
+  Plus,
+  ChevronDown,
+  Building2,
+  ShieldAlert,
+  Smartphone,
+  ArrowRight,
+  Loader2,
+} from "lucide-react";
 import QrCodeScannerModal from "../components/QrCodeScannerModal";
 
 interface StoreItem {
@@ -140,19 +156,19 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 relative overflow-hidden select-none">
-      {/* Background gradients */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-purple-600/10 blur-[120px] pointer-events-none" />
+    <main className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center p-4 relative overflow-hidden select-none">
+      {/* Background Glows */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-emerald-600/10 blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/10 blur-[130px] pointer-events-none" />
 
       {/* Top Header Store Selector */}
-      <header className="fixed top-0 inset-x-0 bg-neutral-950/80 backdrop-blur-md border-b border-neutral-900 px-4 py-3 z-30 flex items-center justify-between">
+      <header className="fixed top-0 inset-x-0 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-900 px-4 py-3 z-30 flex items-center justify-between max-w-md mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-blue-600/20 text-blue-500 flex items-center justify-center font-bold">
-            <Truck size={18} />
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-black">
+            <Truck size={17} />
           </div>
-          <span className="text-sm font-black tracking-tight text-white hidden sm:inline">
-            RMS Driver Console
+          <span className="text-xs font-black tracking-wider uppercase text-zinc-200">
+            Driver Hub
           </span>
         </div>
 
@@ -160,18 +176,18 @@ export default function LoginPage() {
         <div className="relative">
           <button
             onClick={() => setIsStoreDropdownOpen(!isStoreDropdownOpen)}
-            className="flex items-center gap-2 px-3 py-2 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-xl text-xs font-bold text-neutral-200 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl text-xs font-bold text-zinc-200 transition-all cursor-pointer shadow-sm"
           >
-            <Building2 size={14} className="text-blue-500" />
-            <span className="max-w-[140px] truncate">
-              {activeStore ? activeStore.branchName : "No Store Paired"}
+            <Building2 size={13} className="text-emerald-400" />
+            <span className="max-w-[130px] truncate">
+              {activeStore ? activeStore.branchName : "Pair Store"}
             </span>
-            <ChevronDown size={14} className="text-neutral-500" />
+            <ChevronDown size={13} className="text-zinc-500" />
           </button>
 
           {isStoreDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl p-2 z-40 space-y-1">
-              <div className="text-[10px] font-bold text-neutral-500 px-3 py-1 uppercase tracking-wider">
+            <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-2 z-40 space-y-1">
+              <div className="text-[10px] font-black text-zinc-500 px-3 py-1 uppercase tracking-widest">
                 Paired Stores
               </div>
               {savedStores.length > 0 ? (
@@ -185,8 +201,8 @@ export default function LoginPage() {
                     }}
                     className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between ${
                       activeStore?.branchId === store.branchId
-                        ? "bg-blue-600 text-white"
-                        : "text-neutral-300 hover:bg-neutral-900"
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/40"
+                        : "text-zinc-300 hover:bg-zinc-800"
                     }`}
                   >
                     <span className="truncate">{store.branchName}</span>
@@ -194,19 +210,19 @@ export default function LoginPage() {
                   </button>
                 ))
               ) : (
-                <div className="px-3 py-2 text-xs text-neutral-500 italic">No stores paired yet</div>
+                <div className="px-3 py-2 text-xs text-zinc-500 italic">No stores paired yet</div>
               )}
 
-              <div className="pt-1 border-t border-neutral-900">
+              <div className="pt-1 border-t border-zinc-800">
                 <button
                   onClick={() => {
                     setIsStoreDropdownOpen(false);
                     setIsQrModalOpen(true);
                   }}
-                  className="w-full py-2 px-3 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-emerald-400 hover:bg-emerald-950/30 transition-all flex items-center gap-2"
                 >
                   <Plus size={14} />
-                  <span>Add Store (Scan QR)</span>
+                  <span>Scan Store QR Code</span>
                 </button>
               </div>
             </div>
@@ -214,146 +230,136 @@ export default function LoginPage() {
         </div>
       </header>
 
-      {/* Main Login Card */}
-      <div className="w-full max-w-md bg-neutral-950 border border-neutral-900 rounded-3xl p-8 shadow-2xl relative z-10 mt-12">
-        {/* App Logo/Branding */}
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-blue-600/15 border border-blue-500/30 rounded-2xl flex items-center justify-center mx-auto text-blue-500 mb-4 animate-bounce">
-            <Truck size={32} />
+      {/* Main Container */}
+      <div className="w-full max-w-sm pt-16 pb-8 space-y-6">
+        {/* Brand Icon & Title */}
+        <div className="text-center space-y-2">
+          <div className="w-14 h-14 bg-zinc-900 border border-zinc-800 rounded-2xl flex items-center justify-center text-emerald-400 mx-auto shadow-xl shadow-emerald-950/20">
+            <Truck size={28} />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white leading-none">
-            RMS Delivery Service
+          <h1 className="text-xl font-black tracking-tight text-white uppercase">
+            Driver Delivery Hub
           </h1>
-          <p className="text-xs text-neutral-500 mt-2 font-medium tracking-wide">
-            DRIVER CONSOLE LOGIN
+          <p className="text-xs text-zinc-400 font-medium">
+            {activeStore ? `Connected: ${activeStore.branchName}` : "Scan store QR code to begin"}
           </p>
         </div>
 
-        {/* Store Pairing Status Badge */}
-        {activeStore ? (
-          <div className="mb-5 p-3.5 bg-blue-950/40 border border-blue-500/30 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
-                <Building2 size={15} />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white">{activeStore.branchName}</div>
-                <div className="text-[10px] text-neutral-400 font-mono">CODE: {activeStore.branchCode}</div>
-              </div>
+        {/* Store Active Banner / Warning */}
+        {!activeStore && (
+          <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-2xl text-center space-y-3 shadow-lg">
+            <div className="flex items-center justify-center gap-2 text-amber-400">
+              <QrCode size={20} />
+              <span className="text-xs font-black uppercase tracking-wider">Store QR Pairing Required</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsQrModalOpen(true)}
-              className="text-[10.5px] font-bold text-blue-400 hover:text-blue-300 underline cursor-pointer"
-            >
-              Switch QR
-            </button>
-          </div>
-        ) : (
-          <div className="mb-5 p-4 bg-amber-950/40 border border-amber-500/30 rounded-2xl text-center space-y-3">
-            <div className="text-xs font-bold text-amber-400">
-              No Restaurant Store Paired
-            </div>
-            <p className="text-[11px] text-neutral-400 leading-relaxed">
-              Scan the Store QR code from the restaurant POS screen to pair your device.
+            <p className="text-[11px] text-amber-200/80 leading-relaxed font-medium">
+              You must pair your device with a restaurant store before logging in.
             </p>
             <button
-              type="button"
               onClick={() => setIsQrModalOpen(true)}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-2"
             >
               <QrCode size={16} />
-              <span>SCAN STORE QR CODE</span>
+              <span>Scan Restaurant QR</span>
             </button>
           </div>
         )}
 
-        {/* Login Form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          {/* POS Check-In Error Card */}
-          {isCheckInRequired ? (
-            <div className="p-4 bg-red-950/60 border border-red-500/40 text-red-300 rounded-2xl text-xs space-y-2 animate-in slide-in-from-top-2">
-              <div className="flex items-center gap-2 font-black text-red-400 uppercase tracking-wider text-[11px]">
-                <ShieldAlert size={16} />
-                <span>POS CHECK-IN REQUIRED</span>
-              </div>
-              <p className="text-[11.5px] text-red-200 leading-relaxed font-medium">
-                You must first Check-In at the restaurant POS terminal before accessing Driver Web.
-              </p>
-            </div>
-          ) : error ? (
-            <div className="flex items-center gap-2.5 p-3.5 bg-red-950/40 border border-red-500/20 text-red-400 rounded-xl text-xs font-semibold">
-              <AlertCircle size={15} />
-              <span>{error}</span>
-            </div>
-          ) : null}
-
-          {geoPermission === "denied" && (
-            <div className="flex items-center gap-2.5 p-3.5 bg-amber-950/40 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-medium leading-relaxed">
-              <AlertCircle size={15} className="shrink-0" />
-              <span>
-                Please enable Geolocation permissions in your browser to start tracking and receive orders.
-              </span>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-neutral-400 tracking-wide uppercase">
-              Driver ID
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-600">
-                <User size={16} />
-              </span>
-              <input
-                type="text"
-                value={driverId}
-                onChange={(e) => setDriverId(e.target.value.toUpperCase())}
-                placeholder="e.g. 001"
-                className="w-full bg-neutral-900/60 border border-neutral-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder-neutral-600 outline-none transition-all uppercase font-mono"
-              />
+        {/* Error Notice */}
+        {error && (
+          <div className="bg-rose-500/10 border border-rose-500/25 p-3.5 rounded-2xl text-rose-300 text-xs font-semibold flex items-start gap-2.5 shadow-lg">
+            <AlertCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="leading-relaxed">{error}</p>
             </div>
           </div>
+        )}
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-neutral-400 tracking-wide uppercase">
-              Password / PIN
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-600">
-                <Lock size={16} />
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                maxLength={4}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••"
-                className="w-full bg-neutral-900/60 border border-neutral-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-xl py-3.5 pl-11 pr-11 text-sm text-white placeholder-neutral-600 outline-none transition-all font-mono"
-              />
+        {/* Login Form Card */}
+        {activeStore && (
+          <div className="bg-zinc-900/90 border border-zinc-800/80 rounded-3xl p-6 shadow-2xl space-y-5">
+            {/* Active Store Badge */}
+            <div className="flex items-center justify-between bg-zinc-950/60 border border-zinc-800/60 px-3.5 py-2.5 rounded-xl text-xs font-extrabold text-zinc-300">
+              <div className="flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span className="truncate">{activeStore.branchName}</span>
+              </div>
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors"
-                tabIndex={-1}
+                onClick={() => setIsQrModalOpen(true)}
+                className="text-[10px] text-emerald-400 hover:underline uppercase font-black shrink-0"
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                Change
               </button>
             </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1.5">
+                  Driver ID / Employee ID
+                </label>
+                <div className="relative">
+                  <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="E.g. DRV-001"
+                    value={driverId}
+                    onChange={(e) => setDriverId(e.target.value.toUpperCase())}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-xs font-mono font-bold text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-all uppercase tracking-wider"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1.5">
+                  4-Digit PIN / Password
+                </label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-10 py-3 text-xs font-mono font-bold text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-all tracking-widest"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Signing In...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Login to Duty Console</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </form>
           </div>
+        )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.98] disabled:bg-blue-800 disabled:opacity-50 text-sm font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
-          >
-            <Key size={16} />
-            <span>{loading ? "Verifying..." : "Access Console"}</span>
-          </button>
-        </form>
-
-        <div className="mt-8 pt-5 border-t border-neutral-900/80 text-center text-[10px] text-neutral-600 font-semibold tracking-wide uppercase">
-          Chicken Delight © 2026
+        <div className="text-center space-y-1">
+          <p className="text-[10px] text-zinc-500 font-semibold">
+            PWA Progressive Web App · Screen Lock Safe
+          </p>
         </div>
       </div>
 
