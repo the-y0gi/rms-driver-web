@@ -8,14 +8,16 @@ import type { Channel } from "pusher-js";
 interface LocationTrackerProps {
   driverId: string;
   restaurantId: string;
+  restaurantCoords?: { lat: number; lng: number };
   activeOrderIds: string[];
   phase: "en-route" | "returning" | "available";
   onReachedRestaurant?: () => void;
 }
 
-// Static restaurant coordinates
-const RESTAURANT_COORDS: Coordinates = { lat: 22.1818, lng: 78.7618 };
+// Fallback restaurant coordinates (used only if restaurantCoords prop is missing)
+const DEFAULT_RESTAURANT_COORDS: Coordinates = { lat: 22.1818, lng: 78.7618 };
 
+// GEOFENCE_RADIUS_M: distance in meters within which a driver is considered "at restaurant"
 const STATIONARY_DISTANCE_M = 2; // Less than 2m movement = stationary
 const GEOFENCE_RADIUS_M = 100; // Geofence radius of 100m around restaurant
 
@@ -52,10 +54,15 @@ function getMinInterval(
 export default function LocationTracker({
   driverId,
   restaurantId,
+  restaurantCoords,
   activeOrderIds,
   phase,
   onReachedRestaurant,
 }: LocationTrackerProps) {
+  // Resolve restaurant coords — prop takes priority, fallback to default
+  const RESTAURANT_COORDS: Coordinates = restaurantCoords && restaurantCoords.lat && restaurantCoords.lng
+    ? restaurantCoords
+    : DEFAULT_RESTAURANT_COORDS;
   const watchIdRef = useRef<number | null>(null);
   const lastSentPosRef = useRef<Coordinates | null>(null);
   const lastSentTimeRef = useRef<number>(0);

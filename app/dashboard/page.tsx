@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean | null>(null);
+  const [restaurantCoords, setRestaurantCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
 
   // Check compulsory GPS
   useEffect(() => {
@@ -88,6 +89,23 @@ export default function DashboardPage() {
           }
           setDriver(fresh);
           localStorage.setItem("driver_session", JSON.stringify(fresh));
+
+          // Fetch restaurant GPS coordinates from settings API
+          const branchId = fresh.restaurantId || session.restaurantId;
+          if (branchId && branchId !== "default") {
+            api.get(`/branches/settings?branchId=${branchId}`)
+              .then((settingsRes) => {
+                if (settingsRes.data.success && settingsRes.data.data?.mainSettings) {
+                  const ms = settingsRes.data.data.mainSettings;
+                  const lat = Number(ms.latitude);
+                  const lng = Number(ms.longitude);
+                  if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                    setRestaurantCoords({ lat, lng });
+                  }
+                }
+              })
+              .catch((err) => console.warn("[Driver] Could not fetch restaurant coords:", err));
+          }
         }
       })
       .catch((err) => console.error("Sync error:", err));
@@ -258,6 +276,7 @@ export default function DashboardPage() {
         <LocationTracker
           driverId={driver._id}
           restaurantId={driver.restaurantId}
+          restaurantCoords={restaurantCoords}
           activeOrderIds={activeOrderIds}
           phase={trackingPhase}
           onReachedRestaurant={handleReachedRestaurant}
