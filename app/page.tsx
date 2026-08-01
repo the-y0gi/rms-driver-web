@@ -144,10 +144,14 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error(err);
-      if (err.response?.status === 403 || err.response?.data?.code === "CHECK_IN_REQUIRED") {
+      if (err.response?.data?.code === "CHECK_IN_REQUIRED") {
         setIsCheckInRequired(true);
         setError(err.response?.data?.message || "Please check-in first at the POS system before accessing Driver Web.");
+      } else if (err.response?.data?.code === "NOT_A_DRIVER") {
+        setIsCheckInRequired(false);
+        setError(err.response?.data?.message || "Access denied. Only employees registered as Drivers can log in.");
       } else {
+        setIsCheckInRequired(false);
         setError(err.response?.data?.message || "Login failed. Please verify credentials.");
       }
     } finally {
@@ -313,7 +317,7 @@ export default function LoginPage() {
 
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1.5">
-                  4-Digit PIN / Password
+                  4-Digit PIN 
                 </label>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -358,7 +362,7 @@ export default function LoginPage() {
 
         <div className="text-center space-y-1">
           <p className="text-[10px] text-zinc-500 font-semibold">
-            PWA Progressive Web App · Screen Lock Safe
+            PWA Progressive Web App
           </p>
         </div>
       </div>
