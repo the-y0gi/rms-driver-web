@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { MapPin, Phone, CheckCircle, Navigation2, Package, IndianRupee } from "lucide-react";
+import { MapPin, Phone, CheckCircle, Navigation2, Package, IndianRupee, DollarSign } from "lucide-react";
 
 interface OrderDetails {
   _id: string; orderNumber: string; customerName: string;
@@ -116,7 +116,7 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
         {/* ── Amount + Navigate ── */}
         <div className="flex items-center justify-between pt-0.5">
           <div className="flex items-center gap-0.5">
-            <IndianRupee size={14} className="text-emerald-400" />
+            <DollarSign size={14} className="text-emerald-400" />
             <span className="text-sm font-bold text-white">{order.total.toFixed(0)}</span>
           </div>
           <button
