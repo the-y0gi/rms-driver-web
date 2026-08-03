@@ -57,7 +57,7 @@ export default function DashboardPage() {
     api.get(`/delivery/driver/${session._id}`).then((res) => {
       if (res.data.success && res.data.data) {
         const fresh = res.data.data;
-        if (fresh.status === "offline" || fresh.posCheckedIn === false) {
+        if (fresh.posCheckedIn === false) {
           localStorage.removeItem("driver_session");
           router.push("/?error=checked_out");
           return;
@@ -106,7 +106,7 @@ export default function DashboardPage() {
       }
     });
     channel.bind("driver-status-changed", (data: any) => {
-      if (data.driverId === driver._id && data.status === "offline") {
+      if (data.driverId === driver._id && (data.posCheckedIn === false || data.checkedOut === true)) {
         localStorage.removeItem("driver_session");
         router.push("/?error=checked_out");
       }

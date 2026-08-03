@@ -117,7 +117,7 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
         <div className="flex items-center justify-between pt-0.5">
           <div className="flex items-center gap-0.5">
             <DollarSign size={14} className="text-emerald-400" />
-            <span className="text-sm font-bold text-white">{order.total.toFixed(0)}</span>
+            <span className="text-sm font-bold text-white">{(order.total || 0).toFixed(2)}</span>
           </div>
           <button
             onClick={handleNavigate}
