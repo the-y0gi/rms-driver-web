@@ -324,9 +324,10 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
+                    maxLength={4}
                     placeholder="••••"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => setPassword(e.target.value.replace(/\D/g, "").slice(0, 4))}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-10 py-3 text-xs font-mono font-bold text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-all tracking-widest"
                   />
                   <button
