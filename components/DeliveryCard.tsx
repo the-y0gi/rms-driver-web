@@ -5,7 +5,7 @@ import { MapPin, Phone, CheckCircle, Navigation2, Package, IndianRupee, DollarSi
 
 interface OrderDetails {
   _id: string; orderNumber: string; customerName: string;
-  customerPhone: string; deliveryAddress: string;
+  customerPhone: string; deliveryAddress: string; notes?: string;
   items: string[]; total: number;
 }
 interface Assignment {
@@ -102,6 +102,16 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
           <MapPin size={12} className="text-[#444] mt-0.5 shrink-0" />
           <p className="text-[11px] text-[#888] leading-relaxed">{order.deliveryAddress}</p>
         </div>
+
+        {/* ── Delivery Instructions Note ── */}
+        {order.notes && (
+          <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-medium leading-relaxed">
+            <span className="font-bold block text-amber-400 text-[9px] uppercase tracking-wider mb-0.5">
+              ⚠️ Delivery Note / Instructions:
+            </span>
+            "{order.notes}"
+          </div>
+        )}
 
         {/* ── Items ── */}
         <div className="px-3 py-2.5 rounded-xl" style={{ background: "#080808", border: "1px solid #161616" }}>
