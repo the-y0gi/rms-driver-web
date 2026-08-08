@@ -4,6 +4,14 @@ import React, { useState, useEffect, useRef } from "react";
 import { X, QrCode, Camera, Upload, AlertCircle, CheckCircle2, ArrowRight, VideoOff, RefreshCw } from "lucide-react";
 import api from "../lib/api";
 
+const sanitizeUrl = (raw: string): string => {
+  if (!raw) return "";
+  if (!raw.includes("localhost") && !raw.includes("127.0.0.1") && raw.startsWith("http://")) {
+    return raw.replace("http://", "https://");
+  }
+  return raw;
+};
+
 interface QrCodeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -120,7 +128,7 @@ export default function QrCodeScannerModal({
             branchId: json.data.branchId,
             branchName: json.data.branchName || "Restaurant Branch",
             branchCode: json.data.branchCode || "STORE",
-            apiUrl: json.data.apiUrl || "",
+            apiUrl: sanitizeUrl(json.data.apiUrl || ""),
           };
           onStorePaired(store);
           onClose();
@@ -153,7 +161,7 @@ export default function QrCodeScannerModal({
           branchId: data.branchId,
           branchName: data.branchName || data.name || "Restaurant Branch",
           branchCode: data.branchCode || data.code || "STORE",
-          apiUrl: data.apiUrl || "",
+          apiUrl: sanitizeUrl(data.apiUrl || ""),
         };
         onStorePaired(store);
         onClose();
@@ -389,3 +397,4 @@ export default function QrCodeScannerModal({
     </div>
   );
 }
+

@@ -6,6 +6,8 @@ import axios from "axios";
  * Falls back to NEXT_PUBLIC_API_URL env variable or localhost.
  */
 const getApiBaseUrl = (): string => {
+  let url = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
   if (typeof window !== "undefined") {
     try {
       const storesJson = localStorage.getItem("driver_saved_stores");
@@ -14,12 +16,20 @@ const getApiBaseUrl = (): string => {
       if (storesJson && activeId) {
         const stores = JSON.parse(storesJson);
         const active = stores.find((s: any) => s.branchId === activeId);
-        if (active?.apiUrl) return active.apiUrl;
+        if (active?.apiUrl) url = active.apiUrl;
       }
     } catch (e) {
     }
+
+    // Always upgrade remote http:// URLs to https:// to prevent (blocked:mixed-content)
+    if (url.startsWith("http://")) {
+      const isLocalhost = url.includes("localhost") || url.includes("127.0.0.1");
+      if (!isLocalhost) {
+        url = url.replace("http://", "https://");
+      }
+    }
   }
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  return url;
 };
 
 const api = axios.create({
