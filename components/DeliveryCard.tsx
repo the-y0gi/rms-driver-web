@@ -16,6 +16,7 @@ interface Assignment {
 }
 interface DeliveryCardProps {
   assignment: Assignment;
+  isOffline?: boolean;
   onMarkDelivered: (assignmentId: string) => Promise<void>;
   onReachedRestaurant?: () => Promise<void>;
 }
@@ -27,7 +28,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; accent: stri
   completed:  { label: "Done",      color: "#10b981", accent: "#10b98120" },
 };
 
-export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRestaurant }: DeliveryCardProps) {
+export default function DeliveryCard({ assignment, isOffline = false, onMarkDelivered, onReachedRestaurant }: DeliveryCardProps) {
   const [loading, setLoading] = useState(false);
   const { order, status } = assignment;
   if (!order) return null;
@@ -35,6 +36,7 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.assigned;
 
   const handleDeliver = async () => {
+    if (isOffline) return;
     setLoading(true);
     try { await onMarkDelivered(assignment._id); }
     catch (err) { console.error(err); }
@@ -142,18 +144,31 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
         {/* ── Action Button ── */}
         {(status === "assigned" || status === "en-route") && (
           <button
-            disabled={loading}
+            disabled={loading || isOffline}
             onClick={handleDeliver}
-            className="w-full py-3 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition-all"
+            className="w-full py-3 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.99] transition-all"
             style={{
-              background: loading ? "#111" : "#059669",
-              border: "1px solid #10b98130",
+              background: loading || isOffline ? "#161616" : "#059669",
+              border: isOffline ? "1px solid #262626" : "1px solid #10b98130",
+              color: isOffline ? "#666666" : "#ffffff",
             }}
           >
-            {loading
-              ? <><div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" /><span>Updating...</span></>
-              : <><CheckCircle size={15} /><span>Mark as Delivered</span></>
-            }
+            {loading ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                <span>Updating...</span>
+              </>
+            ) : isOffline ? (
+              <>
+                <CheckCircle size={15} className="text-[#444]" />
+                <span>Start Duty Above to Deliver</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle size={15} />
+                <span>Mark as Delivered</span>
+              </>
+            )}
           </button>
         )}
 
@@ -164,12 +179,13 @@ export default function DeliveryCard({ assignment, onMarkDelivered, onReachedRes
             </p>
             {onReachedRestaurant && (
               <button
+                disabled={isOffline}
                 onClick={onReachedRestaurant}
-                className="w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.99] transition-all"
-                style={{ background: "#10b98110", border: "1px solid #10b98125", color: "#10b981" }}
+                className="w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.99] transition-all"
+                style={{ background: isOffline ? "#161616" : "#10b98110", border: isOffline ? "1px solid #262626" : "1px solid #10b98125", color: isOffline ? "#666" : "#10b981" }}
               >
                 <CheckCircle size={15} />
-                Reached Store — Go Available
+                <span>{isOffline ? "Start Duty Above First" : "Reached Store — Go Available"}</span>
               </button>
             )}
           </div>

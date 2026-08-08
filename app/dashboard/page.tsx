@@ -281,7 +281,7 @@ export default function DashboardPage() {
         {/* ── DUTY TOGGLE ── */}
         <button
           onClick={toggleStatus}
-          disabled={driver.status === "on-delivery" || driver.status === "returning" || statusLoading}
+          disabled={statusLoading || driver.status === "returning" || driver.status === "on-delivery"}
           className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background: isOnline ? "#10b981" : "#111",
@@ -420,6 +420,7 @@ export default function DashboardPage() {
                 <DeliveryCard
                   key={assignment._id}
                   assignment={assignment}
+                  isOffline={!isOnline}
                   onMarkDelivered={handleMarkDelivered}
                   onReachedRestaurant={handleReachedRestaurant}
                 />
