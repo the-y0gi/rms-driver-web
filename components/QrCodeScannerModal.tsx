@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { X, QrCode, Camera, Upload, AlertCircle, CheckCircle2, ArrowRight, VideoOff, RefreshCw } from "lucide-react";
+import api from "../lib/api";
 
 interface QrCodeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStorePaired: (store: { branchId: string; branchName: string; branchCode: string }) => void;
+  onStorePaired: (store: { branchId: string; branchName: string; branchCode: string; apiUrl?: string }) => void;
 }
 
 export default function QrCodeScannerModal({
@@ -99,14 +100,52 @@ export default function QrCodeScannerModal({
     }, 400);
   };
 
-  const parseAndPairQr = (rawText: string) => {
+  const parseAndPairQr = async (rawText: string) => {
+    setError(null);
+    const trimmed = rawText.trim();
+
+    //Try backend verification (handles both signed HMAC tokens and plain JSON)
+    try {
+      const verifyUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/delivery/driver/verify-qr`;
+      const res = await fetch(verifyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qrToken: trimmed }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data?.branchId) {
+          const store = {
+            branchId: json.data.branchId,
+            branchName: json.data.branchName || "Restaurant Branch",
+            branchCode: json.data.branchCode || "STORE",
+            apiUrl: json.data.apiUrl || "",
+          };
+          onStorePaired(store);
+          onClose();
+          return;
+        }
+      }
+    } catch (networkError) {
+    }
+
+    // Offline fallback — parse signed token base64url payload or plain JSON directly
     try {
       let data: any = null;
-      const trimmed = rawText.trim();
-      if (trimmed.startsWith("{")) {
-        data = JSON.parse(trimmed);
+      let rawJsonStr = trimmed;
+
+      if (trimmed.includes(".")) {
+        try {
+          const b64 = trimmed.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+          rawJsonStr = atob(b64);
+        } catch (e) {}
+      }
+
+      if (rawJsonStr.startsWith("{")) {
+        data = JSON.parse(rawJsonStr);
       } else {
-        data = JSON.parse(decodeURIComponent(trimmed));
+        data = JSON.parse(decodeURIComponent(rawJsonStr));
       }
 
       if (data && (data.type === "BRANCH_PAIRING_QR" || data.branchId)) {
@@ -114,15 +153,16 @@ export default function QrCodeScannerModal({
           branchId: data.branchId,
           branchName: data.branchName || data.name || "Restaurant Branch",
           branchCode: data.branchCode || data.code || "STORE",
+          apiUrl: data.apiUrl || "",
         };
         onStorePaired(store);
         onClose();
         return;
       }
-      throw new Error("Invalid Store QR code payload.");
-    } catch (err) {
-      setError("Invalid QR Code content. Please scan a valid Restaurant Store QR code.");
+    } catch (parseErr) {
     }
+
+    setError("Invalid QR Code. Please scan a valid Restaurant Store QR code.");
   };
 
   const handleManualSubmit = (e: React.FormEvent) => {

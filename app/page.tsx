@@ -19,6 +19,7 @@ import {
   Smartphone,
   ArrowRight,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import QrCodeScannerModal from "../components/QrCodeScannerModal";
 
@@ -26,6 +27,7 @@ interface StoreItem {
   branchId: string;
   branchName: string;
   branchCode: string;
+  apiUrl?: string;
 }
 
 export default function LoginPage() {
@@ -100,6 +102,31 @@ export default function LoginPage() {
     setActiveStore(newStore);
     localStorage.setItem("driver_saved_stores", JSON.stringify(updatedList));
     localStorage.setItem("driver_active_store", newStore.branchId);
+  };
+
+  const handleRemoveStore = (branchId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updatedList = savedStores.filter((s) => s.branchId !== branchId);
+    setSavedStores(updatedList);
+    localStorage.setItem("driver_saved_stores", JSON.stringify(updatedList));
+
+    if (activeStore?.branchId === branchId) {
+      const nextActive = updatedList.length > 0 ? updatedList[0] : null;
+      setActiveStore(nextActive);
+      if (nextActive) {
+        localStorage.setItem("driver_active_store", nextActive.branchId);
+      } else {
+        localStorage.removeItem("driver_active_store");
+      }
+    }
+  };
+
+  const handleClearAllStores = () => {
+    setSavedStores([]);
+    setActiveStore(null);
+    localStorage.removeItem("driver_saved_stores");
+    localStorage.removeItem("driver_active_store");
+    setIsStoreDropdownOpen(false);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -191,27 +218,52 @@ export default function LoginPage() {
 
           {isStoreDropdownOpen && (
             <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-2 z-40 space-y-1">
-              <div className="text-[10px] font-black text-zinc-500 px-3 py-1 uppercase tracking-widest">
-                Paired Stores
+              <div className="flex items-center justify-between px-3 py-1">
+                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                  Paired Stores
+                </span>
+                {savedStores.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllStores}
+                    className="text-[9px] font-bold text-rose-400 hover:text-rose-300 uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                )}
               </div>
               {savedStores.length > 0 ? (
                 savedStores.map((store) => (
-                  <button
+                  <div
                     key={store.branchId}
                     onClick={() => {
                       setActiveStore(store);
                       localStorage.setItem("driver_active_store", store.branchId);
                       setIsStoreDropdownOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between ${
+                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer group ${
                       activeStore?.branchId === store.branchId
                         ? "bg-emerald-600 text-white shadow-md shadow-emerald-950/40"
                         : "text-zinc-300 hover:bg-zinc-800"
                     }`}
                   >
-                    <span className="truncate">{store.branchName}</span>
-                    <span className="text-[10px] opacity-70 font-mono">{store.branchCode}</span>
-                  </button>
+                    <span className="truncate flex-1 pr-2">{store.branchName}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] opacity-70 font-mono">{store.branchCode}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemoveStore(store.branchId, e)}
+                        title="Remove Store"
+                        className={`p-1 rounded-lg transition-all ${
+                          activeStore?.branchId === store.branchId
+                            ? "hover:bg-emerald-700 text-emerald-100 hover:text-white"
+                            : "hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400"
+                        }`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
                 ))
               ) : (
                 <div className="px-3 py-2 text-xs text-zinc-500 italic">No stores paired yet</div>

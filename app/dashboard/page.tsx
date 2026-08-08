@@ -13,6 +13,7 @@ interface DriverSession {
   _id: string; driverId: string; name: string; phone: string; color: string;
   status: "available" | "on-delivery" | "returning" | "offline";
   restaurantId: string; assignedVehicle: Vehicle | null;
+  token?: string;
 }
 
 export default function DashboardPage() {
@@ -62,8 +63,9 @@ export default function DashboardPage() {
           router.push("/?error=checked_out");
           return;
         }
-        setDriver(fresh);
-        localStorage.setItem("driver_session", JSON.stringify(fresh));
+        const updatedSession = { ...fresh, token: session.token || fresh.token };
+        setDriver(updatedSession);
+        localStorage.setItem("driver_session", JSON.stringify(updatedSession));
         const branchId = fresh.restaurantId || session.restaurantId;
         if (branchId && branchId !== "default") {
           api.get(`/branches/settings?branchId=${branchId}`).then((r) => {
@@ -94,23 +96,47 @@ export default function DashboardPage() {
     fetchAssignments(driver._id);
     const pusher = getPusherClient();
     const channel = pusher.subscribe(`private-restaurant-${driver.restaurantId}`);
+
+    const handleRefresh = () => {
+      fetchAssignments(driver._id);
+      api.get(`/delivery/driver/${driver._id}`).then((res) => {
+        if (res.data.success && res.data.data) {
+          const fresh = res.data.data;
+          if (fresh.posCheckedIn === false) {
+            localStorage.removeItem("driver_session");
+            router.push("/?error=checked_out");
+            return;
+          }
+          const updatedSession = { ...fresh, token: driver.token };
+          setDriver(updatedSession);
+          localStorage.setItem("driver_session", JSON.stringify(updatedSession));
+        }
+      }).catch(() => {});
+    };
+
     channel.bind("delivery-assigned", (data: any) => {
-      if (data.driverId === driver._id) {
-        fetchAssignments(driver._id);
-        setDriver((prev) => {
-          if (!prev) return null;
-          const u = { ...prev, status: "on-delivery" as const };
-          localStorage.setItem("driver_session", JSON.stringify(u));
-          return u;
-        });
+      if (!data.driverId || data.driverId === driver._id || data.driverId === driver.driverId || data.unassigned) {
+        handleRefresh();
       }
     });
-    channel.bind("driver-status-changed", (data: any) => {
-      if (data.driverId === driver._id && (data.posCheckedIn === false || data.checkedOut === true)) {
-        localStorage.removeItem("driver_session");
-        router.push("/?error=checked_out");
+
+    channel.bind("delivery-status-update", (data: any) => {
+      if (!data.driverId || data.driverId === driver._id || data.driverId === driver.driverId) {
+        handleRefresh();
       }
     });
+
+    channel.bind("driver-status-change", (data: any) => {
+      if (data.driverId === driver._id || data.driverId === driver.driverId) {
+        if (data.posCheckedIn === false || data.checkedOut === true) {
+          localStorage.removeItem("driver_session");
+          router.push("/?error=checked_out");
+        } else {
+          handleRefresh();
+        }
+      }
+    });
+
     return () => { pusher.unsubscribe(`private-restaurant-${driver.restaurantId}`); };
   }, [driver, fetchAssignments, router]);
 
